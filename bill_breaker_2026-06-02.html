@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill Breaker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the slider to match Tailwind's look */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -8px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #e5e7eb;
+            border-radius: 4px;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        /* Subtle animation for the status indicator */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .status-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased min-h-screen p-4 md:p-8 flex justify-center">
+
+    <div class="max-w-4xl w-full grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left Column: Controls -->
+        <div class="md:col-span-7 space-y-6">
+            
+            <!-- Header -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h1 class="text-2xl font-bold text-slate-800">Bill Breaker</h1>
+                    <button id="resetAllBtn" class="text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors">
+                        Reset All
+                    </button>
+                </div>
+                
+                <div class="space-y-4 bg-blue-50/50 rounded-xl p-4 border border-blue-100">
+                    <label for="targetAmount" class="block text-sm font-semibold text-blue-900 uppercase tracking-wider">Target Amount</label>
+                    
+                    <div class="flex items-center space-x-4">
+                        <div class="relative flex-1">
+                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                                <span class="text-blue-500 font-bold text-xl">$</span>
+                            </div>
+                            <input type="number" id="targetAmount" name="targetAmount" min="0" step="10" value="200"
+                                class="block w-full rounded-xl border-0 py-3 pl-9 pr-4 text-blue-900 ring-1 ring-inset ring-blue-200 focus:ring-2 focus:ring-inset focus:ring-blue-600 text-xl font-semibold bg-white transition-all shadow-sm" placeholder="0">
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center space-x-4">
+                        <span class="text-xs font-medium text-slate-400 w-8 text-right">$0</span>
+                        <input type="range" id="targetAmountSlider" min="0" max="2000" step="10" value="200" class="flex-1">
+                        <span class="text-xs font-medium text-slate-400 w-12">$2000+</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-lg font-semibold text-slate-800">Requested Bills</h2>
+                    <button id="clearBillsBtn" class="text-sm text-red-500 hover:text-red-700 font-medium transition-colors">
+                        Clear Bills
+                    </button>
+                </div>
+                
+                <div id="denominationsList" class="space-y-3">
+                    <!-- Denomination items will be injected here by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Summary & Teller Slip -->
+        <div class="md:col-span-5 space-y-6 sticky top-6">
+            
+            <!-- Calculation Summary -->
+            <div class="bg-slate-900 text-white rounded-2xl shadow-xl overflow-hidden">
+                <div class="p-6 space-y-4">
+                    <div class="flex justify-between items-end">
+                        <span class="text-slate-400 text-sm font-medium">Running Total</span>
+                        <span class="text-3xl font-bold" id="runningTotalDisplay">$0</span>
+                    </div>
+                    
+                    <div class="h-px bg-slate-700 w-full"></div>
+                    
+                    <div class="flex justify-between items-end">
+                        <span class="text-slate-400 text-sm font-medium">Remaining</span>
+                        <span class="text-2xl font-semibold" id="remainingDisplay">$200</span>
+                    </div>
+                </div>
+                
+                <!-- Status Bar -->
+                <div id="statusBar" class="h-2 w-full bg-slate-700 transition-colors duration-300"></div>
+            </div>
+
+            <!-- Teller Slip -->
+            <div class="bg-yellow-50 rounded-2xl shadow-sm border-2 border-yellow-200 overflow-hidden relative">
+                <!-- Tear-off edge effect -->
+                <div class="absolute top-0 left-0 right-0 h-3 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIxMCI+PHBhdGggZD0iTTAgMTBMMTAgMEwyMCAxMFoiIGZpbGw9IiNmZmYiLz48L3N2Zz4=')] bg-repeat-x"></div>
+                
+                <div class="p-8 pt-10">
+                    <div class="text-center mb-6 border-b border-yellow-300 pb-4">
+                        <h3 class="text-xl font-bold text-yellow-900 tracking-tight uppercase">Teller Slip</h3>
+                        <p class="text-sm text-yellow-700 mt-1">Please provide the following</p>
+                    </div>
+                    
+                    <div id="tellerSlipContent" class="space-y-2 min-h-[150px]">
+                        <!-- Slip items injected by JS -->
+                        <div class="text-center text-yellow-600/60 italic mt-8 text-sm">
+                            Add bills to generate slip
+                        </div>
+                    </div>
+                    
+                    <div class="mt-8 pt-4 border-t-2 border-yellow-300 border-dashed flex justify-between items-center">
+                        <span class="font-bold text-yellow-900">Total Requested:</span>
+                        <span class="text-xl font-black text-yellow-900" id="slipTotalDisplay">$0</span>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // State
+            const state = {
+                targetAmount: 200,
+                bills: [
+                    { value: 100, label: "$100", count: 0 },
+                    { value: 50,  label: "$50",  count: 0 },
+                    { value: 20,  label: "$20",  count: 0 },
+                    { value: 10,  label: "$10",  count: 0 },
+                    { value: 5,   label: "$5",   count: 0 },
+                    { value: 1,   label: "$1",   count: 0 }
+                ]
+            };
+
+            // DOM Elements
+            const els = {
+                targetInput: document.getElementById('targetAmount'),
+                targetSlider: document.getElementById('targetAmountSlider'),
+                denominationsList: document.getElementById('denominationsList'),
+                runningTotalDisplay: document.getElementById('runningTotalDisplay'),
+                remainingDisplay: document.getElementById('remainingDisplay'),
+                statusBar: document.getElementById('statusBar'),
+                tellerSlipContent: document.getElementById('tellerSlipContent'),
+                slipTotalDisplay: document.getElementById('slipTotalDisplay'),
+                clearBillsBtn: document.getElementById('clearBillsBtn'),
+                resetAllBtn: document.getElementById('resetAllBtn')
+            };
+
+            // Formatting helper
+            const formatMoney = (amount) => {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                }).format(amount);
+            };
+
+            // Calculate totals
+            const calculate = () => {
+                let runningTotal = 0;
+                state.bills.forEach(bill => {
+                    runningTotal += (bill.value * bill.count);
+                });
+                
+                const remaining = state.targetAmount - runningTotal;
+                
+                return { runningTotal, remaining };
+            };
+
+            // Render the denomination input rows
+            const renderDenominations = () => {
+                els.denominationsList.innerHTML = '';
+                
+                state.bills.forEach((bill, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100';
+                    
+                    row.innerHTML = `
+                        <div class="flex items-center space-x-4 w-1/3">
+                            <div class="bg-green-100 text-green-800 font-bold py-2 px-4 rounded-lg shadow-sm border border-green-200 w-16 text-center">
+                                ${bill.label}
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-3 bg-slate-100 rounded-lg p-1">
+                            <button class="w-10 h-10 rounded-md bg-white shadow-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 flex items-center justify-center text-xl font-medium transition-colors" data-action="decrease" data-index="${index}">
+                                &minus;
+                            </button>
+                            
+                            <input type="number" min="0" value="${bill.count}" class="w-16 h-10 text-center font-bold text-lg bg-transparent border-0 focus:ring-0 p-0" data-input-index="${index}">
+                            
+                            <button class="w-10 h-10 rounded-md bg-white shadow-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 flex items-center justify-center text-xl font-medium transition-colors" data-action="increase" data-index="${index}">
+                                &plus;
+                            </button>
+                        </div>
+                        
+                        <div class="w-1/4 text-right font-semibold text-slate-500">
+                            ${formatMoney(bill.value * bill.count)}
+                        </div>
+                    `;
+                    els.denominationsList.appendChild(row);
+                });
+
+                // Attach events to new buttons
+                document.querySelectorAll('#denominationsList button').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const index = parseInt(e.currentTarget.dataset.index);
+                        const action = e.currentTarget.dataset.action;
+                        
+                        if (action === 'increase') {
+                            state.bills[index].count++;
+                        } else if (action === 'decrease' && state.bills[index].count > 0) {
+                            state.bills[index].count--;
+                        }
+                        updateUI();
+                    });
+                });
+
+                // Attach events to direct inputs for bills
+                document.querySelectorAll('#denominationsList input[type="number"]').forEach(input => {
+                    input.addEventListener('change', (e) => {
+                        const index = parseInt(e.target.dataset.inputIndex);
+                        let val = parseInt(e.target.value);
+                        if (isNaN(val) || val < 0) val = 0;
+                        state.bills[index].count = val;
+                        updateUI();
+                    });
+                });
+            };
+
+            // Render the final slip for the teller
+            const renderSlip = () => {
+                els.tellerSlipContent.innerHTML = '';
+                let hasItems = false;
+                
+                state.bills.forEach(bill => {
+                    if (bill.count > 0) {
+                        hasItems = true;
+                        const row = document.createElement('div');
+                        row.className = 'flex justify-between items-center py-2 border-b border-yellow-200/50 last:border-0';
+                        row.innerHTML = `
+                            <div class="flex items-center space-x-3">
+                                <span class="font-bold text-lg text-yellow-900">${bill.count}</span>
+                                <span class="text-sm text-yellow-700 uppercase tracking-widest text-xs">&times;</span>
+                                <span class="font-semibold text-yellow-900">${bill.label}</span>
+                            </div>
+                            <span class="font-medium text-yellow-800">${formatMoney(bill.value * bill.count)}</span>
+                        `;
+                        els.tellerSlipContent.appendChild(row);
+                    }
+                });
+
+                if (!hasItems) {
+                    els.tellerSlipContent.innerHTML = `
+                        <div class="text-center text-yellow-600/60 italic mt-8 text-sm">
+                            Adjust quantities to generate slip
+                        </div>
+                    `;
+                }
+            };
+
+            // Main update function
+            const updateUI = () => {
+                const { runningTotal, remaining } = calculate();
+                
+                els.runningTotalDisplay.textContent = formatMoney(runningTotal);
+                els.slipTotalDisplay.textContent = formatMoney(runningTotal);
+                
+                // Handle remaining display and colors
+                els.remainingDisplay.textContent = formatMoney(remaining);
+                
+                // Status Bar Colors
+                els.statusBar.classList.remove('bg-slate-700', 'bg-blue-500', 'bg-emerald-500', 'bg-red-500', 'status-pulse');
+                
+                if (remaining === 0) {
+                    // Exact match
+                    els.remainingDisplay.className = 'text-2xl font-semibold text-emerald-400';
+                    els.statusBar.classList.add('bg-emerald-500', 'status-pulse');
+                } else if (remaining < 0) {
+                    // Over target
+                    els.remainingDisplay.className = 'text-2xl font-semibold text-red-400';
+                    els.statusBar.classList.add('bg-red-500');
+                } else {
+                    // Under target
+                    els.remainingDisplay.className = 'text-2xl font-semibold text-blue-400';
+                    if (runningTotal > 0) {
+                         els.statusBar.classList.add('bg-blue-500');
+                    } else {
+                         els.statusBar.classList.add('bg-slate-700');
+                    }
+                }
+
+                renderDenominations();
+                renderSlip();
+            };
+
+            // Sync Target Input and Slider
+            const updateTargetFromInput = (e) => {
+                let val = parseInt(e.target.value);
+                if (isNaN(val) || val < 0) val = 0;
+                
+                state.targetAmount = val;
+                els.targetSlider.value = val;
+                
+                // Optional: expand slider max if input goes beyond it
+                if (val > parseInt(els.targetSlider.max)) {
+                    els.targetSlider.max = val + (val * 0.5); // Add 50% headroom
+                    els.targetSlider.nextElementSibling.textContent = `$${els.targetSlider.max}+`;
+                }
+                
+                updateUI();
+            };
+
+            const updateTargetFromSlider = (e) => {
+                let val = parseInt(e.target.value);
+                state.targetAmount = val;
+                els.targetInput.value = val;
+                updateUI();
+            };
+
+            // Event Listeners
+            els.targetInput.addEventListener('input', updateTargetFromInput);
+            els.targetSlider.addEventListener('input', updateTargetFromSlider);
+
+            els.clearBillsBtn.addEventListener('click', () => {
+                state.bills.forEach(b => b.count = 0);
+                updateUI();
+            });
+
+            els.resetAllBtn.addEventListener('click', () => {
+                state.targetAmount = 200;
+                els.targetInput.value = 200;
+                els.targetSlider.value = 200;
+                els.targetSlider.max = 2000;
+                els.targetSlider.nextElementSibling.textContent = `$2000+`;
+                state.bills.forEach(b => b.count = 0);
+                updateUI();
+            });
+
+            // Initial render
+            updateUI();
+        });
+    </script>
+</body>
+</html>
