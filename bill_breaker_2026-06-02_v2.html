@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Bill Breaker">
+    
+    <title>Bill Breaker</title>
+    
+    <style>
+        /* Base iOS Styling */
+        :root {
+            --bg-color: #f2f2f7;
+            --card-bg: #ffffff;
+            --primary: #007aff;
+            --text-main: #000000;
+            --text-muted: #8e8e93;
+            --danger: #ff3b30;
+            --success: #34c759;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom) 16px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* App UI (Screen Only) */
+        @media screen {
+            #receipt-container { display: none; }
+            
+            .header-card {
+                background: var(--card-bg);
+                border-radius: 16px;
+                padding: 20px;
+                margin-top: 20px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                position: sticky;
+                top: env(safe-area-inset-top);
+                z-index: 10;
+            }
+
+            .flex-between { display: flex; justify-content: space-between; align-items: center; }
+            
+            .stat-box { text-align: center; }
+            .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+            .stat-value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+            .stat-value.remaining.success { color: var(--success); }
+            .stat-value.remaining.danger { color: var(--danger); }
+
+            .controls-section { margin-top: 20px; }
+            .target-input {
+                width: 100%; box-sizing: border-box; padding: 12px; font-size: 20px;
+                text-align: center; border: 1px solid #ccc; border-radius: 10px; margin-bottom: 15px;
+            }
+            .target-slider { width: 100%; margin-bottom: 20px; }
+
+            .denom-list { margin-top: 20px; padding-bottom: 80px; }
+            .denom-row {
+                background: var(--card-bg); padding: 15px 20px; border-radius: 12px;
+                display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+                box-shadow: 0 1px 5px rgba(0,0,0,0.02);
+            }
+            .denom-label { font-size: 20px; font-weight: 600; width: 60px;}
+            
+            .stepper { display: flex; align-items: center; gap: 15px; }
+            .btn-step {
+                background: var(--primary); color: white; border: none; border-radius: 50%;
+                width: 36px; height: 36px; font-size: 24px; font-weight: bold;
+                display: flex; align-items: center; justify-content: center; cursor: pointer;
+            }
+            .btn-step:disabled, .disabled-ui .btn-step { background: #ccc; pointer-events: none; }
+            .qty-display { font-size: 20px; font-weight: 600; min-width: 30px; text-align: center; }
+
+            .action-buttons { display: flex; gap: 10px; margin-top: 20px; }
+            .btn-action {
+                flex: 1; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 600;
+                border: none; cursor: pointer; color: white;
+            }
+            .btn-print { background: var(--text-main); }
+            .btn-teller { background: var(--primary); }
+
+            /* Lock Icon */
+            .lock-icon { font-size: 24px; cursor: pointer; padding: 5px; }
+
+            /* Passcode Modal */
+            #passcode-modal {
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.5); backdrop-filter: blur(5px);
+                display: flex; flex-direction: column; justify-content: flex-end;
+                z-index: 100; transition: transform 0.3s ease-in-out;
+            }
+            .modal-content {
+                background: var(--card-bg); border-radius: 20px 20px 0 0;
+                padding: 30px 20px env(safe-area-inset-bottom) 20px; text-align: center;
+            }
+            .pin-display { display: flex; justify-content: center; gap: 15px; margin: 20px 0 30px 0; }
+            .pin-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--text-main); }
+            .pin-dot.filled { background: var(--text-main); }
+            .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; max-width: 300px; margin: 0 auto; }
+            .key-btn {
+                background: var(--bg-color); border: none; border-radius: 50%; width: 70px; height: 70px;
+                font-size: 28px; margin: 0 auto; cursor: pointer;
+            }
+            .hidden { display: none !important; }
+            .disabled-ui { opacity: 0.6; pointer-events: none; }
+        }
+
+        /* Barebones Print Receipt Styling */
+        @media print {
+            body { background: #fff; color: #000; padding: 0; margin: 0; }
+            #app-ui, #passcode-modal { display: none !important; }
+            
+            #receipt-container {
+                display: block; width: 300px; margin: 0 auto;
+                font-family: "Courier New", Courier, monospace; font-size: 14px;
+            }
+            .receipt-header { text-align: center; margin-bottom: 15px; font-weight: bold; }
+            .receipt-table { width: 100%; border-collapse: collapse; }
+            .receipt-table th, .receipt-table td { padding: 4px 0; text-align: right; }
+            .receipt-table th:first-child, .receipt-table td:first-child { text-align: left; }
+            .receipt-table th { border-bottom: 1px dashed #000; border-top: 1px dashed #000; font-weight: normal; }
+            .receipt-table .total-row td { border-top: 1px dashed #000; font-weight: bold; padding-top: 10px; }
+            .end-slip { text-align: center; margin-top: 20px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-ui" class="disabled-ui">
+        <div class="flex-between" style="padding-top: 10px;">
+            <h2 style="margin:0;">Bill Breaker</h2>
+            <div id="lock-btn" class="lock-icon" onclick="openPasscode()">🔒</div>
+        </div>
+
+        <div class="header-card">
+            <div class="flex-between">
+                <div class="stat-box">
+                    <div class="stat-label">Target</div>
+                    <div class="stat-value" id="disp-target">$200</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Running Total</div>
+                    <div class="stat-value" id="disp-total">$0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Remaining</div>
+                    <div class="stat-value remaining" id="disp-remaining">$200</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="edit-controls" class="controls-section">
+            <input type="number" id="target-input" class="target-input" value="200" oninput="updateTarget(this.value)">
+            <input type="range" id="target-slider" class="target-slider" min="0" max="1000" step="10" value="200" oninput="updateTarget(this.value)">
+        </div>
+
+        <div class="denom-list" id="denom-container">
+            </div>
+
+        <div class="action-buttons">
+            <button class="btn-action btn-teller" onclick="toggleTellerMode()" id="btn-teller">Teller Mode</button>
+            <button class="btn-action btn-print" onclick="printReceipt()">Print Slip</button>
+        </div>
+    </div>
+
+    <div id="passcode-modal" class="hidden">
+        <div class="modal-content">
+            <h3>Unlock Edit Mode</h3>
+            <p style="color: var(--text-muted); font-size: 14px;">Enter PIN to modify values</p>
+            
+            <div class="pin-display">
+                <div class="pin-dot" id="dot-1"></div>
+                <div class="pin-dot" id="dot-2"></div>
+                <div class="pin-dot" id="dot-3"></div>
+                <div class="pin-dot" id="dot-4"></div>
+            </div>
+
+            <div class="keypad">
+                <button class="key-btn" onclick="addPin('1')">1</button>
+                <button class="key-btn" onclick="addPin('2')">2</button>
+                <button class="key-btn" onclick="addPin('3')">3</button>
+                <button class="key-btn" onclick="addPin('4')">4</button>
+                <button class="key-btn" onclick="addPin('5')">5</button>
+                <button class="key-btn" onclick="addPin('6')">6</button>
+                <button class="key-btn" onclick="addPin('7')">7</button>
+                <button class="key-btn" onclick="addPin('8')">8</button>
+                <button class="key-btn" onclick="addPin('9')">9</button>
+                <button class="key-btn" style="visibility: hidden;">.</button>
+                <button class="key-btn" onclick="addPin('0')">0</button>
+                <button class="key-btn" onclick="clearPin()">⌫</button>
+            </div>
+            <button onclick="closePasscode()" style="margin-top: 20px; background: none; border: none; color: var(--text-muted); font-size: 16px;">Cancel</button>
+        </div>
+    </div>
+
+    <div id="receipt-container">
+        <div class="receipt-header">
+            <div>WITHDRAWAL SLIP</div>
+            <div id="receipt-date"></div>
+        </div>
+        <table class="receipt-table">
+            <thead>
+                <tr>
+                    <th>DENOM</th>
+                    <th>QTY</th>
+                    <th>AMOUNT</th>
+                </tr>
+            </thead>
+            <tbody id="receipt-body">
+                </tbody>
+        </table>
+        <div class="end-slip">*** END OF SLIP ***</div>
+    </div>
+
+    <script>
+        // --- AUTHENTICATION STATE ---
+        const SECRET_PIN = "1234"; // Default PIN for demonstration
+        let currentPin = "";
+        let isAuthenticated = false;
+
+        function openPasscode() {
+            if(isAuthenticated) {
+                // Toggle Lock back on
+                isAuthenticated = false;
+                document.getElementById('lock-btn').innerText = "🔒";
+                document.getElementById('app-ui').classList.add('disabled-ui');
+                return;
+            }
+            document.getElementById('passcode-modal').classList.remove('hidden');
+            currentPin = "";
+            updatePinDots();
+        }
+
+        function closePasscode() {
+            document.getElementById('passcode-modal').classList.add('hidden');
+        }
+
+        function addPin(num) {
+            if(currentPin.length < 4) currentPin += num;
+            updatePinDots();
+            if(currentPin.length === 4) setTimeout(checkPin, 150);
+        }
+
+        function clearPin() {
+            currentPin = currentPin.slice(0, -1);
+            updatePinDots();
+        }
+
+        function updatePinDots() {
+            for(let i=1; i<=4; i++) {
+                const dot = document.getElementById(`dot-${i}`);
+                if(i <= currentPin.length) dot.classList.add('filled');
+                else dot.classList.remove('filled');
+            }
+        }
+
+        function checkPin() {
+            if(currentPin === SECRET_PIN) {
+                isAuthenticated = true;
+                document.getElementById('app-ui').classList.remove('disabled-ui');
+                document.getElementById('lock-btn').innerText = "🔓";
+                closePasscode();
+            } else {
+                alert("Incorrect PIN");
+                currentPin = "";
+                updatePinDots();
+            }
+        }
+
+        // --- BILL BREAKER LOGIC ---
+        let target = 200;
+        let isTellerMode = false;
+        const denoms = [100, 50, 20, 10, 5, 1];
+        const counts = { 100:0, 50:0, 20:0, 10:0, 5:0, 1:0 };
+
+        function initApp() {
+            const container = document.getElementById('denom-container');
+            container.innerHTML = '';
+            
+            denoms.forEach(val => {
+                container.innerHTML += `
+                    <div class="denom-row" id="row-${val}">
+                        <div class="denom-label">$${val}</div>
+                        <div class="stepper" id="stepper-${val}">
+                            <button class="btn-step" onclick="updateQty(${val}, -1)">-</button>
+                            <div class="qty-display" id="qty-${val}">0</div>
+                            <button class="btn-step" onclick="updateQty(${val}, 1)">+</button>
+                        </div>
+                        <div class="qty-display hidden" id="teller-qty-${val}" style="font-size: 24px;"></div>
+                    </div>
+                `;
+            });
+            updateUI();
+        }
+
+        function updateTarget(val) {
+            target = parseInt(val) || 0;
+            document.getElementById('target-input').value = target;
+            document.getElementById('target-slider').value = target;
+            updateUI();
+        }
+
+        function updateQty(val, change) {
+            if(!isAuthenticated) return openPasscode();
+            const newVal = counts[val] + change;
+            if (newVal >= 0) {
+                counts[val] = newVal;
+                updateUI();
+            }
+        }
+
+        function updateUI() {
+            let total = 0;
+            denoms.forEach(val => {
+                total += counts[val] * val;
+                document.getElementById(`qty-${val}`).innerText = counts[val];
+            });
+
+            const remaining = target - total;
+            document.getElementById('disp-target').innerText = `$${target}`;
+            document.getElementById('disp-total').innerText = `$${total}`;
+            
+            const remEl = document.getElementById('disp-remaining');
+            remEl.innerText = `$${remaining}`;
+            remEl.className = `stat-value remaining ${remaining === 0 ? 'success' : (remaining < 0 ? 'danger' : '')}`;
+
+            // Handle Teller Mode View
+            denoms.forEach(val => {
+                const row = document.getElementById(`row-${val}`);
+                const stepper = document.getElementById(`stepper-${val}`);
+                const tellerQty = document.getElementById(`teller-qty-${val}`);
+                
+                if(isTellerMode) {
+                    stepper.classList.add('hidden');
+                    if(counts[val] > 0) {
+                        row.classList.remove('hidden');
+                        tellerQty.classList.remove('hidden');
+                        tellerQty.innerText = `${counts[val]}x`;
+                    } else {
+                        row.classList.add('hidden');
+                    }
+                } else {
+                    row.classList.remove('hidden');
+                    stepper.classList.remove('hidden');
+                    tellerQty.classList.add('hidden');
+                }
+            });
+        }
+
+        function toggleTellerMode() {
+            if(!isAuthenticated) return openPasscode();
+            isTellerMode = !isTellerMode;
+            document.getElementById('edit-controls').classList.toggle('hidden', isTellerMode);
+            const btn = document.getElementById('btn-teller');
+            btn.innerText = isTellerMode ? "Exit Teller Mode" : "Teller Mode";
+            btn.style.background = isTellerMode ? "var(--danger)" : "var(--primary)";
+            updateUI();
+        }
+
+        function printReceipt() {
+            const tbody = document.getElementById('receipt-body');
+            tbody.innerHTML = '';
+            let total = 0;
+            let countTotal = 0;
+
+            const dateStr = new Date().toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' });
+            document.getElementById('receipt-date').innerText = dateStr;
+
+            denoms.forEach(val => {
+                if(counts[val] > 0) {
+                    const amt = counts[val] * val;
+                    total += amt;
+                    countTotal += counts[val];
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>$${val}</td>
+                            <td>${counts[val]}</td>
+                            <td>$${amt}</td>
+                        </tr>
+                    `;
+                }
+            });
+
+            tbody.innerHTML += `
+                <tr class="total-row">
+                    <td>TOTAL</td>
+                    <td>${countTotal}</td>
+                    <td>$${total}</td>
+                </tr>
+            `;
+
+            window.print();
+        }
+
+        // Boot
+        initApp();
+    </script>
+</body>
+</html>
